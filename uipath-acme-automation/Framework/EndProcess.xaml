@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Framework/EndProcess.xaml
+  Closes the browser and logs the final process summary.
+  No credentials or sensitive data involved.
+-->
+<Activity
+  x:Class="ACMEEmployeeDataExtraction.Framework.EndProcess"
+  mc:Ignorable="sap sap2010"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:uia="http://schemas.uipath.com/workflow/activities/uiautomation">
+
+  <x:Members>
+    <x:Property Name="in_Config"            Type="InArgument(scg:Dictionary(x:String, x:String))" />
+    <x:Property Name="in_TransactionNumber" Type="InArgument(x:Int32)" />
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="EndProcess">
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[END] Beginning cleanup. Total transactions processed: &quot; &amp; in_TransactionNumber.ToString()]" />
+
+    <!-- Close all open browser windows gracefully -->
+    <TryCatch DisplayName="Try - Close Browser">
+      <TryCatch.Try>
+        <uia:CloseApplication DisplayName="Close Browser"
+                              Selector="&lt;html app='chrome.exe' /&gt;"
+                              TimeoutMS="10000" />
+      </TryCatch.Try>
+      <TryCatch.Catches>
+        <Catch x:TypeArguments="System.Exception">
+          <ActivityAction x:TypeArguments="System.Exception">
+            <ActivityAction.Argument>
+              <DelegateInArgument x:TypeArguments="System.Exception" Name="closeEx" />
+            </ActivityAction.Argument>
+            <!-- Browser may already be closed — warn only, don't fail -->
+            <LogMessage Level="[System.Activities.Statements.LogSeverity.Warn]"
+                        Message="[&quot;[END] Browser close warning (may already be closed): &quot; &amp; closeEx.Message]" />
+          </ActivityAction>
+        </Catch>
+      </TryCatch.Catches>
+    </TryCatch>
+
+    <!-- Log final summary -->
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[END] ACME Employee Data Extraction process finished. Output: &quot; &amp; If(in_Config.ContainsKey(&quot;OutputFileName&quot;), in_Config(&quot;OutputFileName&quot;), &quot;N/A&quot;)]" />
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[END] Process end time: &quot; &amp; DateTime.Now.ToString(&quot;yyyy-MM-dd HH:mm:ss&quot;)]" />
+  </Sequence>
+</Activity>

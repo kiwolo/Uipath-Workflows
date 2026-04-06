@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Framework/Process.xaml
+  Core business logic: scrape employee table rows and export to Excel.
+
+  SECURITY:
+  - No credentials used here — login was already handled in InitAllApplications.
+  - Output file path constructed from Config (non-sensitive) + timestamp.
+  - No data is sent to external systems.
+-->
+<Activity
+  x:Class="ACMEEmployeeDataExtraction.Framework.Process"
+  mc:Ignorable="sap sap2010"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:uia="http://schemas.uipath.com/workflow/activities/uiautomation"
+  xmlns:excel="clr-namespace:UiPath.Excel.Activities;assembly=UiPath.Excel.Activities">
+
+  <x:Members>
+    <x:Property Name="in_Config"            Type="InArgument(scg:Dictionary(x:String, x:String))" />
+    <x:Property Name="in_TransactionNumber" Type="InArgument(x:Int32)" />
+    <x:Property Name="in_TransactionID"     Type="InArgument(x:String)" />
+    <x:Property Name="out_Success"          Type="OutArgument(x:Boolean)" />
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.Collections.Generic" />
+      <mva:VisualBasicImportReference Assembly="System.Data"    Import="System.Data" />
+      <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.IO" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="Process - Employee Data Extraction">
+    <Sequence.Variables>
+      <Variable x:TypeArguments="System.Data.DataTable" Name="dtEmployeeData" />
+      <Variable x:TypeArguments="scg:IEnumerable(UiPath.UIAutomation.Element)" Name="lstRows" />
+      <Variable x:TypeArguments="x:Int32"  Name="intRowCount"    Default="0" />
+      <Variable x:TypeArguments="x:Int32"  Name="intTimeout"     Default="30000" />
+      <Variable x:TypeArguments="x:Int32"  Name="intMaxRetries"  Default="3" />
+      <Variable x:TypeArguments="x:String" Name="strOutputPath"  Default="&quot;&quot;" />
+      <!-- Row-level cell values — local only, never persisted outside this workflow -->
+      <Variable x:TypeArguments="x:String" Name="strEmpID"       Default="&quot;&quot;" />
+      <Variable x:TypeArguments="x:String" Name="strEmpName"     Default="&quot;&quot;" />
+      <Variable x:TypeArguments="x:String" Name="strEmpEmail"    Default="&quot;&quot;" />
+      <Variable x:TypeArguments="x:String" Name="strDepartment"  Default="&quot;&quot;" />
+      <Variable x:TypeArguments="x:String" Name="strSalary"      Default="&quot;&quot;" />
+      <Variable x:TypeArguments="x:Boolean" Name="blnValidRow"   Default="True" />
+    </Sequence.Variables>
+
+    <!-- Set runtime config values -->
+    <Assign DisplayName="Set Timeout">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[intTimeout]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[CInt(in_Config("TimeoutMS"))]</InArgument></Assign.Value>
+    </Assign>
+    <Assign DisplayName="Set MaxRetries">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[intMaxRetries]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[CInt(in_Config("MaxRetries"))]</InArgument></Assign.Value>
+    </Assign>
+    <Assign DisplayName="Build Output File Path">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[strOutputPath]</OutArgument></Assign.To>
+      <Assign.Value>
+        <InArgument x:TypeArguments="x:String">
+          [Path.Combine(in_Config("OutputFolderPath"), in_Config("OutputFileName"))]
+        </InArgument>
+      </Assign.Value>
+    </Assign>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[PROCESS] Starting employee data extraction. Transaction: &quot; &amp; in_TransactionID]" />
+
+    <!-- ── STEP 1: Create output DataTable ── -->
+    <BuildDataTable DisplayName="Create Employee DataTable"
+                    DataTable="[dtEmployeeData]">
+      <BuildDataTable.DataTable>
+        <x:Reference>dtEmployeeData</x:Reference>
+      </BuildDataTable.DataTable>
+      <BuildDataTable.Columns>
+        <DataColumn ColumnName="EmployeeID"  DataType="[GetType(System.String)]" AllowDBNull="False" />
+        <DataColumn ColumnName="Name"        DataType="[GetType(System.String)]" AllowDBNull="True"  />
+        <DataColumn ColumnName="Email"       DataType="[GetType(System.String)]" AllowDBNull="True"  />
+        <DataColumn ColumnName="Department"  DataType="[GetType(System.String)]" AllowDBNull="True"  />
+        <DataColumn ColumnName="Salary"      DataType="[GetType(System.String)]" AllowDBNull="True"  />
+      </BuildDataTable.Columns>
+    </BuildDataTable>
+
+    <!-- ── STEP 2: Ensure output folder exists ── -->
+    <If Condition="[Not Directory.Exists(in_Config(&quot;OutputFolderPath&quot;))]">
+      <If.Then>
+        <InvokeCode DisplayName="Create Output Directory">
+          <InvokeCode.Code>
+            <![CDATA[Directory.CreateDirectory(in_Config("OutputFolderPath"))]]>
+          </InvokeCode.Code>
+        </InvokeCode>
+      </If.Then>
+    </If>
+
+    <!-- ── STEP 3: Scrape employee table rows with retry ── -->
+    <RetryScope NumberOfRetries="[intMaxRetries]"
+                RetryInterval="[New TimeSpan(0, 0, CInt(in_Config(&quot;RetryIntervalSeconds&quot;)))]"
+                DisplayName="Retry - Find Employee Rows">
+      <RetryScope.Body>
+        <uia:FindChildren DisplayName="Find All Employee Table Rows"
+                          Selector="&lt;webctrl tag='TABLE' id='employee-table' /&gt;/&lt;webctrl tag='TBODY' /&gt;/&lt;webctrl tag='TR' /&gt;"
+                          Elements="[lstRows]"
+                          TimeoutMS="[intTimeout]" />
+      </RetryScope.Body>
+    </RetryScope>
+
+    <Assign DisplayName="Count Rows">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[intRowCount]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[lstRows.Count()]</InArgument></Assign.Value>
+    </Assign>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[PROCESS] Found &quot; &amp; intRowCount.ToString() &amp; &quot; employee rows in table&quot;]" />
+
+    <!-- Business exception if table is empty -->
+    <If Condition="[intRowCount = 0]">
+      <If.Then>
+        <Throw>
+          <Throw.Exception>
+            <InArgument x:TypeArguments="UiPath.Core.BusinessRuleException">
+              [New UiPath.Core.BusinessRuleException("Employee table exists but contains no data rows.")]
+            </InArgument>
+          </Throw.Exception>
+        </Throw>
+      </If.Then>
+    </If>
+
+    <!-- ── STEP 4: Extract data from each row ── -->
+    <ForEach x:TypeArguments="UiPath.UIAutomation.Element"
+             DisplayName="Extract Each Employee Row"
+             Values="[lstRows]">
+      <ActivityAction x:TypeArguments="UiPath.UIAutomation.Element">
+        <ActivityAction.Argument>
+          <DelegateInArgument x:TypeArguments="UiPath.UIAutomation.Element" Name="rowElement" />
+        </ActivityAction.Argument>
+        <TryCatch DisplayName="Try - Extract Row Data">
+          <TryCatch.Try>
+            <Sequence DisplayName="Read Row Cells">
+              <!-- Extract each cell by column index using GetText on child TD elements -->
+              <uia:GetText DisplayName="Get EmployeeID"
+                           Element="[rowElement]"
+                           Selector="&lt;webctrl tag='TD' idx='1' /&gt;"
+                           Text="[strEmpID]" />
+              <uia:GetText DisplayName="Get Name"
+                           Element="[rowElement]"
+                           Selector="&lt;webctrl tag='TD' idx='2' /&gt;"
+                           Text="[strEmpName]" />
+              <uia:GetText DisplayName="Get Email"
+                           Element="[rowElement]"
+                           Selector="&lt;webctrl tag='TD' idx='3' /&gt;"
+                           Text="[strEmpEmail]" />
+              <uia:GetText DisplayName="Get Department"
+                           Element="[rowElement]"
+                           Selector="&lt;webctrl tag='TD' idx='4' /&gt;"
+                           Text="[strDepartment]" />
+              <uia:GetText DisplayName="Get Salary"
+                           Element="[rowElement]"
+                           Selector="&lt;webctrl tag='TD' idx='5' /&gt;"
+                           Text="[strSalary]" />
+
+              <!-- Validate: EmployeeID must not be empty -->
+              <Assign DisplayName="Validate Row">
+                <Assign.To><OutArgument x:TypeArguments="x:Boolean">[blnValidRow]</OutArgument></Assign.To>
+                <Assign.Value>
+                  <InArgument x:TypeArguments="x:Boolean">
+                    [Not String.IsNullOrWhiteSpace(strEmpID)]
+                  </InArgument>
+                </Assign.Value>
+              </Assign>
+
+              <If Condition="[blnValidRow]">
+                <If.Then>
+                  <AddDataRow DisplayName="Add Row to DataTable"
+                              DataTable="[dtEmployeeData]"
+                              ArrayRow="[New Object() {strEmpID.Trim(), strEmpName.Trim(), strEmpEmail.Trim(), strDepartment.Trim(), strSalary.Trim()}]" />
+                </If.Then>
+                <If.Else>
+                  <LogMessage Level="[System.Activities.Statements.LogSeverity.Warn]"
+                              Message="[&quot;[PROCESS] Skipping row with empty EmployeeID&quot;]" />
+                </If.Else>
+              </If>
+            </Sequence>
+          </TryCatch.Try>
+          <TryCatch.Catches>
+            <Catch x:TypeArguments="System.Exception">
+              <ActivityAction x:TypeArguments="System.Exception">
+                <ActivityAction.Argument>
+                  <DelegateInArgument x:TypeArguments="System.Exception" Name="rowEx" />
+                </ActivityAction.Argument>
+                <!-- Log and continue to next row — don't fail entire process for one row -->
+                <LogMessage Level="[System.Activities.Statements.LogSeverity.Warn]"
+                            Message="[&quot;[PROCESS] Error reading row, skipping. Error: &quot; &amp; rowEx.Message]" />
+              </ActivityAction>
+            </Catch>
+          </TryCatch.Catches>
+        </TryCatch>
+      </ActivityAction>
+    </ForEach>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[PROCESS] Extracted &quot; &amp; dtEmployeeData.Rows.Count.ToString() &amp; &quot; valid employee records&quot;]" />
+
+    <!-- Business exception if no valid rows were extracted -->
+    <If Condition="[dtEmployeeData.Rows.Count = 0]">
+      <If.Then>
+        <Throw>
+          <Throw.Exception>
+            <InArgument x:TypeArguments="UiPath.Core.BusinessRuleException">
+              [New UiPath.Core.BusinessRuleException("No valid employee records could be extracted from the table.")]
+            </InArgument>
+          </Throw.Exception>
+        </Throw>
+      </If.Then>
+    </If>
+
+    <!-- ── STEP 5: Export to Excel ── -->
+    <TryCatch DisplayName="Try - Export to Excel">
+      <TryCatch.Try>
+        <excel:ExcelApplicationScope WorkbookPath="[strOutputPath]"
+                                     DisplayName="Write Employee Data to Excel"
+                                     CreateNewFile="True"
+                                     Password=""
+                                     ReadOnly="False">
+          <excel:ExcelApplicationScope.Body>
+            <ActivityAction>
+              <Sequence DisplayName="Write and Format Excel">
+                <!-- Write DataTable to Sheet1 starting at A1 -->
+                <excel:WriteRange SheetName="EmployeeData"
+                                  DisplayName="Write DataTable to Sheet"
+                                  StartingCell="A1"
+                                  DataTable="[dtEmployeeData]"
+                                  AddHeaders="True" />
+
+                <!-- Bold the header row -->
+                <excel:ExcelSetRange DisplayName="Format Header Row - Bold"
+                                     SheetName="EmployeeData"
+                                     Range="A1:E1"
+                                     Bold="True"
+                                     BackgroundColor="[System.Drawing.Color.LightBlue]" />
+
+                <!-- Auto-fit all columns -->
+                <excel:AutoFitColumns SheetName="EmployeeData"
+                                      DisplayName="AutoFit Columns"
+                                      Range="A:E" />
+
+                <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                            Message="[&quot;[PROCESS] Excel export complete: &quot; &amp; strOutputPath]" />
+              </Sequence>
+            </ActivityAction>
+          </excel:ExcelApplicationScope.Body>
+        </excel:ExcelApplicationScope>
+      </TryCatch.Try>
+      <TryCatch.Catches>
+        <Catch x:TypeArguments="System.IO.IOException">
+          <ActivityAction x:TypeArguments="System.IO.IOException">
+            <ActivityAction.Argument>
+              <DelegateInArgument x:TypeArguments="System.IO.IOException" Name="ioEx" />
+            </ActivityAction.Argument>
+            <Sequence>
+              <LogMessage Level="[System.Activities.Statements.LogSeverity.Error]"
+                          Message="[&quot;[PROCESS] File access error writing Excel: &quot; &amp; ioEx.Message]" />
+              <Throw Exception="[ioEx]" />
+            </Sequence>
+          </ActivityAction>
+        </Catch>
+      </TryCatch.Catches>
+    </TryCatch>
+
+    <!-- Mark success -->
+    <Assign DisplayName="Set Success = True">
+      <Assign.To><OutArgument x:TypeArguments="x:Boolean">[out_Success]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Boolean">[True]</InArgument></Assign.Value>
+    </Assign>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[PROCESS] Transaction &quot; &amp; in_TransactionID &amp; &quot; completed successfully.&quot;]" />
+  </Sequence>
+</Activity>

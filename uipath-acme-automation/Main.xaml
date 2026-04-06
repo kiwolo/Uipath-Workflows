@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Main.xaml - RE-Framework State Machine Orchestrator
+  Architecture: Initialization → GetTransactionData → Process → EndProcess
+
+  SECURITY NOTE: No credentials or sensitive values are stored in this file.
+  All credentials are fetched at runtime from UiPath Orchestrator Assets.
+-->
+<Activity
+  mc:Ignorable="sap sap2010 sads"
+  x:Class="ACMEEmployeeDataExtraction.Main"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <x:Members>
+    <!-- No in/out arguments at top level - orchestrated via Config dictionary -->
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+      <mva:VisualBasicImportReference Assembly="System.Activities" Import="System.Activities" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <StateMachine x:Name="REFramework_StateMachine" DisplayName="ACME Employee Data Extraction">
+
+    <!-- ═══════════════════════════════════════════════════
+         VARIABLES (process-wide scope)
+         ═══════════════════════════════════════════════════ -->
+    <StateMachine.Variables>
+      <!-- Config dictionary loaded from Config.xlsx (non-sensitive settings only) -->
+      <Variable x:TypeArguments="scg:Dictionary(x:String, x:String)"
+                Name="Config" Default="[New Dictionary(Of String, String)()]" />
+
+      <!-- Runtime state tracking -->
+      <Variable x:TypeArguments="x:Int32"   Name="intSystemExceptionRetries" Default="0" />
+      <Variable x:TypeArguments="x:Int32"   Name="intTransactionNumber"       Default="0" />
+      <Variable x:TypeArguments="x:Boolean" Name="blnInitSuccessful"          Default="False" />
+      <Variable x:TypeArguments="x:String"  Name="strTransactionID"           Default="&quot;&quot;" />
+
+      <!-- Exception tracking -->
+      <Variable x:TypeArguments="System.Exception" Name="BusinessException" />
+      <Variable x:TypeArguments="System.Exception" Name="SystemException" />
+    </StateMachine.Variables>
+
+    <!-- ═══════════════════════════════════════════════════
+         INITIAL STATE
+         ═══════════════════════════════════════════════════ -->
+    <StateMachine.InitialState>
+      <x:Reference>InitializationState</x:Reference>
+    </StateMachine.InitialState>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE 1: INITIALIZATION
+         ═══════════════════════════════════════════════════ -->
+    <State x:Name="InitializationState" DisplayName="Initialization">
+      <State.Entry>
+        <Sequence DisplayName="Initialization Entry">
+          <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                      Message="[&quot;[INIT] Starting ACME Employee Data Extraction process&quot;]" />
+          <TryCatch DisplayName="Initialize Settings and Applications">
+            <TryCatch.Try>
+              <Sequence>
+                <InvokeWorkflowFile WorkflowFileName="Framework\InitAllSettings.xaml"
+                                    DisplayName="InitAllSettings">
+                  <InvokeWorkflowFile.Arguments>
+                    <OutArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[Config]</OutArgument>
+                  </InvokeWorkflowFile.Arguments>
+                </InvokeWorkflowFile>
+                <InvokeWorkflowFile WorkflowFileName="Framework\InitAllApplications.xaml"
+                                    DisplayName="InitAllApplications">
+                  <InvokeWorkflowFile.Arguments>
+                    <InArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[Config]</InArgument>
+                  </InvokeWorkflowFile.Arguments>
+                </InvokeWorkflowFile>
+                <Assign DisplayName="Mark Init Successful">
+                  <Assign.To><OutArgument x:TypeArguments="x:Boolean">[blnInitSuccessful]</OutArgument></Assign.To>
+                  <Assign.Value><InArgument x:TypeArguments="x:Boolean">[True]</InArgument></Assign.Value>
+                </Assign>
+                <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                            Message="[&quot;[INIT] Initialization completed successfully&quot;]" />
+              </Sequence>
+            </TryCatch.Try>
+            <TryCatch.Catches>
+              <Catch x:TypeArguments="System.Exception">
+                <ActivityAction x:TypeArguments="System.Exception">
+                  <ActivityAction.Argument>
+                    <DelegateInArgument x:TypeArguments="System.Exception" Name="initException" />
+                  </ActivityAction.Argument>
+                  <Sequence>
+                    <LogMessage Level="[System.Activities.Statements.LogSeverity.Error]"
+                                Message="[&quot;[INIT] Initialization failed: &quot; &amp; initException.Message]" />
+                    <Assign>
+                      <Assign.To><OutArgument x:TypeArguments="x:Boolean">[blnInitSuccessful]</OutArgument></Assign.To>
+                      <Assign.Value><InArgument x:TypeArguments="x:Boolean">[False]</InArgument></Assign.Value>
+                    </Assign>
+                    <Throw Exception="[initException]" />
+                  </Sequence>
+                </ActivityAction>
+              </Catch>
+            </TryCatch.Catches>
+          </TryCatch>
+        </Sequence>
+      </State.Entry>
+
+      <State.Transitions>
+        <!-- On success → GetTransactionData -->
+        <Transition DisplayName="Init Success" To="GetTransactionDataState">
+          <Transition.Condition>[blnInitSuccessful = True]</Transition.Condition>
+        </Transition>
+        <!-- On failure → EndProcess -->
+        <Transition DisplayName="Init Failed" To="EndProcessState">
+          <Transition.Condition>[blnInitSuccessful = False]</Transition.Condition>
+        </Transition>
+      </State.Transitions>
+    </State>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE 2: GET TRANSACTION DATA
+         ═══════════════════════════════════════════════════ -->
+    <State x:Name="GetTransactionDataState" DisplayName="GetTransactionData">
+      <State.Variables>
+        <Variable x:TypeArguments="x:Boolean" Name="blnMoreTransactions" Default="False" />
+      </State.Variables>
+      <State.Entry>
+        <Sequence DisplayName="Get Transaction Data Entry">
+          <TryCatch DisplayName="Try - GetTransactionData">
+            <TryCatch.Try>
+              <InvokeWorkflowFile WorkflowFileName="Framework\GetTransactionData.xaml"
+                                  DisplayName="GetTransactionData">
+                <InvokeWorkflowFile.Arguments>
+                  <InArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[Config]</InArgument>
+                  <InArgument x:TypeArguments="x:Int32">[intTransactionNumber]</InArgument>
+                  <OutArgument x:TypeArguments="x:Boolean">[blnMoreTransactions]</OutArgument>
+                  <OutArgument x:TypeArguments="x:String">[strTransactionID]</OutArgument>
+                </InvokeWorkflowFile.Arguments>
+              </InvokeWorkflowFile>
+            </TryCatch.Try>
+            <TryCatch.Catches>
+              <Catch x:TypeArguments="System.Exception">
+                <ActivityAction x:TypeArguments="System.Exception">
+                  <ActivityAction.Argument>
+                    <DelegateInArgument x:TypeArguments="System.Exception" Name="getDataException" />
+                  </ActivityAction.Argument>
+                  <Sequence>
+                    <LogMessage Level="[System.Activities.Statements.LogSeverity.Error]"
+                                Message="[&quot;[GET_DATA] Failed to retrieve transaction data: &quot; &amp; getDataException.Message]" />
+                    <Assign>
+                      <Assign.To><OutArgument x:TypeArguments="x:Boolean">[blnMoreTransactions]</OutArgument></Assign.To>
+                      <Assign.Value><InArgument x:TypeArguments="x:Boolean">[False]</InArgument></Assign.Value>
+                    </Assign>
+                  </Sequence>
+                </ActivityAction>
+              </Catch>
+            </TryCatch.Catches>
+          </TryCatch>
+        </Sequence>
+      </State.Entry>
+
+      <State.Transitions>
+        <!-- More transactions to process → Process state -->
+        <Transition DisplayName="Process Transaction" To="ProcessState">
+          <Transition.Condition>[blnMoreTransactions = True]</Transition.Condition>
+        </Transition>
+        <!-- No more transactions → End -->
+        <Transition DisplayName="No More Transactions" To="EndProcessState">
+          <Transition.Condition>[blnMoreTransactions = False]</Transition.Condition>
+        </Transition>
+      </State.Transitions>
+    </State>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE 3: PROCESS TRANSACTION
+         ═══════════════════════════════════════════════════ -->
+    <State x:Name="ProcessState" DisplayName="Process">
+      <State.Variables>
+        <Variable x:TypeArguments="x:Boolean" Name="blnProcessSuccess" Default="False" />
+      </State.Variables>
+      <State.Entry>
+        <Sequence DisplayName="Process Transaction Entry">
+          <Assign DisplayName="Increment Transaction Number">
+            <Assign.To><OutArgument x:TypeArguments="x:Int32">[intTransactionNumber]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:Int32">[intTransactionNumber + 1]</InArgument></Assign.Value>
+          </Assign>
+          <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                      Message="[&quot;[PROCESS] Processing transaction #&quot; &amp; intTransactionNumber.ToString()]" />
+          <TryCatch DisplayName="Try - Process">
+            <TryCatch.Try>
+              <InvokeWorkflowFile WorkflowFileName="Framework\Process.xaml"
+                                  DisplayName="Process">
+                <InvokeWorkflowFile.Arguments>
+                  <InArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[Config]</InArgument>
+                  <InArgument x:TypeArguments="x:Int32">[intTransactionNumber]</InArgument>
+                  <InArgument x:TypeArguments="x:String">[strTransactionID]</InArgument>
+                  <OutArgument x:TypeArguments="x:Boolean">[blnProcessSuccess]</OutArgument>
+                </InvokeWorkflowFile.Arguments>
+              </InvokeWorkflowFile>
+            </TryCatch.Try>
+            <TryCatch.Catches>
+              <!-- Business Exception: expected failure, skip transaction -->
+              <Catch x:TypeArguments="UiPath.Core.BusinessRuleException">
+                <ActivityAction x:TypeArguments="UiPath.Core.BusinessRuleException">
+                  <ActivityAction.Argument>
+                    <DelegateInArgument x:TypeArguments="UiPath.Core.BusinessRuleException" Name="bizException" />
+                  </ActivityAction.Argument>
+                  <Sequence>
+                    <LogMessage Level="[System.Activities.Statements.LogSeverity.Warn]"
+                                Message="[&quot;[PROCESS] Business rule exception on transaction #&quot; &amp; intTransactionNumber.ToString() &amp; &quot;: &quot; &amp; bizException.Message]" />
+                    <Assign>
+                      <Assign.To><OutArgument x:TypeArguments="x:Boolean">[blnProcessSuccess]</OutArgument></Assign.To>
+                      <Assign.Value><InArgument x:TypeArguments="x:Boolean">[False]</InArgument></Assign.Value>
+                    </Assign>
+                  </Sequence>
+                </ActivityAction>
+              </Catch>
+              <!-- System Exception: retry up to MaxRetries -->
+              <Catch x:TypeArguments="System.Exception">
+                <ActivityAction x:TypeArguments="System.Exception">
+                  <ActivityAction.Argument>
+                    <DelegateInArgument x:TypeArguments="System.Exception" Name="sysException" />
+                  </ActivityAction.Argument>
+                  <Sequence>
+                    <LogMessage Level="[System.Activities.Statements.LogSeverity.Error]"
+                                Message="[&quot;[PROCESS] System exception on transaction #&quot; &amp; intTransactionNumber.ToString() &amp; &quot; (retry &quot; &amp; intSystemExceptionRetries.ToString() &amp; &quot;): &quot; &amp; sysException.Message]" />
+                    <Assign>
+                      <Assign.To><OutArgument x:TypeArguments="x:Int32">[intSystemExceptionRetries]</OutArgument></Assign.To>
+                      <Assign.Value><InArgument x:TypeArguments="x:Int32">[intSystemExceptionRetries + 1]</InArgument></Assign.Value>
+                    </Assign>
+                    <Assign>
+                      <Assign.To><OutArgument x:TypeArguments="x:Boolean">[blnProcessSuccess]</OutArgument></Assign.To>
+                      <Assign.Value><InArgument x:TypeArguments="x:Boolean">[False]</InArgument></Assign.Value>
+                    </Assign>
+                  </Sequence>
+                </ActivityAction>
+              </Catch>
+            </TryCatch.Catches>
+          </TryCatch>
+        </Sequence>
+      </State.Entry>
+
+      <State.Transitions>
+        <!-- Process succeeded → check for more transactions -->
+        <Transition DisplayName="Process Success - Next Transaction" To="GetTransactionDataState">
+          <Transition.Condition>[blnProcessSuccess = True]</Transition.Condition>
+        </Transition>
+        <!-- System exception within retry limit → retry from Init -->
+        <Transition DisplayName="Retry After System Exception" To="InitializationState">
+          <Transition.Condition>[blnProcessSuccess = False AndAlso intSystemExceptionRetries &lt; CInt(If(Config.ContainsKey("MaxRetries"), Config("MaxRetries"), "3"))]</Transition.Condition>
+        </Transition>
+        <!-- Exceeded retries or business exception → end -->
+        <Transition DisplayName="End After Failure" To="EndProcessState">
+          <Transition.Condition>[blnProcessSuccess = False AndAlso intSystemExceptionRetries &gt;= CInt(If(Config.ContainsKey("MaxRetries"), Config("MaxRetries"), "3"))]</Transition.Condition>
+        </Transition>
+      </State.Transitions>
+    </State>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE 4: END PROCESS (FINAL)
+         ═══════════════════════════════════════════════════ -->
+    <State x:Name="EndProcessState" DisplayName="EndProcess" IsFinal="True">
+      <State.Entry>
+        <InvokeWorkflowFile WorkflowFileName="Framework\EndProcess.xaml"
+                            DisplayName="EndProcess">
+          <InvokeWorkflowFile.Arguments>
+            <InArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[Config]</InArgument>
+            <InArgument x:TypeArguments="x:Int32">[intTransactionNumber]</InArgument>
+          </InvokeWorkflowFile.Arguments>
+        </InvokeWorkflowFile>
+      </State.Entry>
+    </State>
+
+  </StateMachine>
+</Activity>

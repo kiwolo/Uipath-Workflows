@@ -1,0 +1,9 @@
+Key,Value
+AcmeSiteURL,https://www.acme-site.com/login
+OrchestratorCredentialAsset,ACME_Credentials
+OutputFolderPath,C:\RPA_Output\
+OutputFileName,EmployeeData_placeholder.xlsx
+BrowserType,Chrome
+TimeoutMS,30000
+MaxRetries,3
+RetryIntervalSeconds,5

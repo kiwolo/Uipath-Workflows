@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Framework/InitAllApplications.xaml
+  Opens the browser, navigates to the ACME login page,
+  and fetches credentials from Orchestrator Assets.
+
+  SECURITY:
+  - Credentials fetched via Get Asset activity from Orchestrator at runtime only.
+  - Credential values are stored in SecureString; never logged or written to disk.
+  - AcmeUsername and AcmePassword are NOT passed as arguments — they are used
+    locally within this workflow and passed securely to the login sequence.
+-->
+<Activity
+  x:Class="ACMEEmployeeDataExtraction.Framework.InitAllApplications"
+  mc:Ignorable="sap sap2010"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:uia="http://schemas.uipath.com/workflow/activities/uiautomation">
+
+  <x:Members>
+    <x:Property Name="in_Config" Type="InArgument(scg:Dictionary(x:String, x:String))" />
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+      <mva:VisualBasicImportReference Assembly="System" Import="System.Security" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="InitAllApplications">
+    <Sequence.Variables>
+      <!-- Credentials fetched from Orchestrator — never hardcoded -->
+      <Variable x:TypeArguments="x:String"           Name="strUsername"       Default="&quot;&quot;" />
+      <Variable x:TypeArguments="System.Security.SecureString" Name="ssPassword" />
+      <Variable x:TypeArguments="x:String"           Name="strAcmeURL"        Default="&quot;&quot;" />
+      <Variable x:TypeArguments="x:Int32"            Name="intBrowserTimeout" Default="30000" />
+    </Sequence.Variables>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[INIT_APP] Fetching credentials from Orchestrator Assets&quot;]" />
+
+    <!-- ── Fetch credentials from Orchestrator Assets ── -->
+    <!--
+      GetCredential fetches username + SecureString password from an Orchestrator
+      Credential Asset named as specified in Config("OrchestratorCredentialAsset").
+      The password is NEVER stored in plaintext or written to any file.
+    -->
+    <ui:GetCredential DisplayName="Get ACME Credential from Orchestrator"
+                      AssetName="[in_Config(&quot;OrchestratorCredentialAsset&quot;)]"
+                      Username="[strUsername]"
+                      Password="[ssPassword]" />
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[INIT_APP] Credential fetched for user: &quot; &amp; strUsername]" />
+
+    <!-- ── Set runtime values from Config ── -->
+    <Assign DisplayName="Set ACME URL">
+      <Assign.To><OutArgument x:TypeArguments="x:String">[strAcmeURL]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:String">[in_Config("AcmeSiteURL")]</InArgument></Assign.Value>
+    </Assign>
+    <Assign DisplayName="Set Browser Timeout">
+      <Assign.To><OutArgument x:TypeArguments="x:Int32">[intBrowserTimeout]</OutArgument></Assign.To>
+      <Assign.Value><InArgument x:TypeArguments="x:Int32">[CInt(in_Config("TimeoutMS"))]</InArgument></Assign.Value>
+    </Assign>
+
+    <!-- ── Open browser and navigate to ACME login page ── -->
+    <uia:Navigate DisplayName="Open ACME Login Page"
+                  BrowserType="[If(in_Config(&quot;BrowserType&quot;) = &quot;Edge&quot;, UiPath.UIAutomation.BrowserType.Edge, UiPath.UIAutomation.BrowserType.Chrome)]"
+                  Url="[strAcmeURL]"
+                  TimeoutMS="[intBrowserTimeout]" />
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[INIT_APP] Browser opened. Navigating to: &quot; &amp; strAcmeURL]" />
+
+    <!-- ── Login sequence ── -->
+    <TryCatch DisplayName="Login to ACME">
+      <TryCatch.Try>
+        <Sequence DisplayName="Perform Login">
+          <!-- Wait for login form to be ready -->
+          <uia:ElementExists DisplayName="Wait for Login Page"
+                             Selector="&lt;webctrl tag='INPUT' name='email' /&gt;"
+                             TimeoutMS="[intBrowserTimeout]" />
+
+          <!-- Type username (fetched from Orchestrator, not Config) -->
+          <uia:TypeInto DisplayName="Enter Username"
+                        Selector="&lt;webctrl tag='INPUT' name='email' /&gt;"
+                        Text="[strUsername]"
+                        DelayBefore="500"
+                        DelayBetweenKeys="50"
+                        EmptyField="True" />
+
+          <!-- Type password from SecureString — never converted to plaintext log -->
+          <uia:TypeInto DisplayName="Enter Password (SecureString)"
+                        Selector="&lt;webctrl tag='INPUT' name='password' /&gt;"
+                        Text="[New System.Net.NetworkCredential(String.Empty, ssPassword).Password]"
+                        DelayBefore="500"
+                        DelayBetweenKeys="50"
+                        EmptyField="True" />
+
+          <!-- Click login button -->
+          <uia:Click DisplayName="Click Login Button"
+                     Selector="&lt;webctrl tag='BUTTON' name='Login' /&gt;"
+                     TimeoutMS="[intBrowserTimeout]" />
+
+          <!-- Wait for dashboard to confirm successful login -->
+          <uia:ElementExists DisplayName="Verify Dashboard Loaded"
+                             Selector="&lt;webctrl tag='H2' innertext='Dashboard' /&gt;"
+                             TimeoutMS="[intBrowserTimeout]" />
+
+          <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                      Message="[&quot;[INIT_APP] Successfully logged into ACME site&quot;]" />
+        </Sequence>
+      </TryCatch.Try>
+      <TryCatch.Catches>
+        <!-- Login credential failure = Business Exception (do not retry with same creds) -->
+        <Catch x:TypeArguments="System.Exception">
+          <ActivityAction x:TypeArguments="System.Exception">
+            <ActivityAction.Argument>
+              <DelegateInArgument x:TypeArguments="System.Exception" Name="loginEx" />
+            </ActivityAction.Argument>
+            <Sequence>
+              <LogMessage Level="[System.Activities.Statements.LogSeverity.Error]"
+                          Message="[&quot;[INIT_APP] Login failed. Verify Orchestrator credential asset is correct. Error: &quot; &amp; loginEx.Message]" />
+              <!-- Re-throw so RE-Framework handles retry/abort decision -->
+              <Throw Exception="[loginEx]" />
+            </Sequence>
+          </ActivityAction>
+        </Catch>
+      </TryCatch.Catches>
+    </TryCatch>
+  </Sequence>
+</Activity>

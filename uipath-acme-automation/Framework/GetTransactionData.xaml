@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Framework/GetTransactionData.xaml
+  Navigates to the Employees section and determines whether there is
+  data to process. For ACME, the entire employee table is one transaction.
+-->
+<Activity
+  x:Class="ACMEEmployeeDataExtraction.Framework.GetTransactionData"
+  mc:Ignorable="sap sap2010"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:uia="http://schemas.uipath.com/workflow/activities/uiautomation">
+
+  <x:Members>
+    <x:Property Name="in_Config"            Type="InArgument(scg:Dictionary(x:String, x:String))" />
+    <x:Property Name="in_TransactionNumber" Type="InArgument(x:Int32)" />
+    <x:Property Name="out_MoreTransactions" Type="OutArgument(x:Boolean)" />
+    <x:Property Name="out_TransactionID"    Type="OutArgument(x:String)" />
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="GetTransactionData">
+    <Sequence.Variables>
+      <Variable x:TypeArguments="x:Boolean" Name="blnTableVisible" Default="False" />
+      <Variable x:TypeArguments="x:Int32"   Name="intTimeout"      Default="30000" />
+    </Sequence.Variables>
+
+    <!-- For ACME, only one transaction (the full employee table download).
+         If transaction number > 0 we are already done. -->
+    <If Condition="[in_TransactionNumber > 0]" DisplayName="Already Processed?">
+      <If.Then>
+        <Sequence DisplayName="No More Transactions">
+          <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                      Message="[&quot;[GET_DATA] All transactions completed. Total processed: &quot; &amp; in_TransactionNumber.ToString()]" />
+          <Assign>
+            <Assign.To><OutArgument x:TypeArguments="x:Boolean">[out_MoreTransactions]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:Boolean">[False]</InArgument></Assign.Value>
+          </Assign>
+          <Assign>
+            <Assign.To><OutArgument x:TypeArguments="x:String">[out_TransactionID]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:String">[""]</InArgument></Assign.Value>
+          </Assign>
+        </Sequence>
+      </If.Then>
+      <If.Else>
+        <Sequence DisplayName="Navigate to Employees and Verify Table">
+          <Assign DisplayName="Set timeout from Config">
+            <Assign.To><OutArgument x:TypeArguments="x:Int32">[intTimeout]</OutArgument></Assign.To>
+            <Assign.Value><InArgument x:TypeArguments="x:Int32">[CInt(in_Config("TimeoutMS"))]</InArgument></Assign.Value>
+          </Assign>
+
+          <!-- Click Employees menu -->
+          <uia:Click DisplayName="Click Employees Menu"
+                     Selector="&lt;webctrl tag='A' innertext='Employees' /&gt;"
+                     TimeoutMS="[intTimeout]" />
+
+          <!-- Verify employee table is present -->
+          <uia:ElementExists DisplayName="Check Employee Table Visible"
+                             Selector="&lt;webctrl tag='TABLE' id='employee-table' /&gt;"
+                             Exists="[blnTableVisible]"
+                             TimeoutMS="[intTimeout]" />
+
+          <If Condition="[blnTableVisible]">
+            <If.Then>
+              <Sequence>
+                <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                            Message="[&quot;[GET_DATA] Employee table found. Scheduling extraction transaction.&quot;]" />
+                <Assign>
+                  <Assign.To><OutArgument x:TypeArguments="x:Boolean">[out_MoreTransactions]</OutArgument></Assign.To>
+                  <Assign.Value><InArgument x:TypeArguments="x:Boolean">[True]</InArgument></Assign.Value>
+                </Assign>
+                <Assign>
+                  <Assign.To><OutArgument x:TypeArguments="x:String">[out_TransactionID]</OutArgument></Assign.To>
+                  <Assign.Value>
+                    <InArgument x:TypeArguments="x:String">
+                      ["ACME_EMPLOYEES_" &amp; DateTime.Now.ToString("yyyyMMddHHmmss")]
+                    </InArgument>
+                  </Assign.Value>
+                </Assign>
+              </Sequence>
+            </If.Then>
+            <If.Else>
+              <Sequence>
+                <LogMessage Level="[System.Activities.Statements.LogSeverity.Warn]"
+                            Message="[&quot;[GET_DATA] Employee table not visible on page. No transaction to process.&quot;]" />
+                <Assign>
+                  <Assign.To><OutArgument x:TypeArguments="x:Boolean">[out_MoreTransactions]</OutArgument></Assign.To>
+                  <Assign.Value><InArgument x:TypeArguments="x:Boolean">[False]</InArgument></Assign.Value>
+                </Assign>
+                <Assign>
+                  <Assign.To><OutArgument x:TypeArguments="x:String">[out_TransactionID]</OutArgument></Assign.To>
+                  <Assign.Value><InArgument x:TypeArguments="x:String">[""]</InArgument></Assign.Value>
+                </Assign>
+              </Sequence>
+            </If.Else>
+          </If>
+        </Sequence>
+      </If.Else>
+    </If>
+  </Sequence>
+</Activity>

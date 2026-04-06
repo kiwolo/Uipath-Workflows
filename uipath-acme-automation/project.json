@@ -1,0 +1,20 @@
+{
+  "$schema": "https://cdn.uipath.com/studio/cloud/schemas/project.json",
+  "name": "ACMEEmployeeDataExtraction",
+  "description": "RE-Framework automation to extract employee data from ACME website and export to Excel. Credentials are sourced from UiPath Orchestrator Assets only - no sensitive data is stored in this project.",
+  "main": "Main.xaml",
+  "outputType": "Process",
+  "expressionLanguage": "VisualBasic",
+  "targetFramework": "Windows",
+  "dependencies": {
+    "UiPath.Excel.Activities": "[2.23.0, )",
+    "UiPath.System.Activities": "[24.10.0, )",
+    "UiPath.UIAutomation.Activities": "[24.10.0, )",
+    "UiPath.WebAPI.Activities": "[1.13.0, )"
+  },
+  "designOptions": {
+    "fileInfoCollection": []
+  },
+  "toolVersion": "24.10.0.0",
+  "studioVersion": "24.10.0.0"
+}

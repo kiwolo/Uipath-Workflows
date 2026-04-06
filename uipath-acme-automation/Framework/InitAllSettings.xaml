@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Framework/InitAllSettings.xaml
+  Loads non-sensitive configuration from Config/Config.xlsx.
+
+  SECURITY: Credentials are NOT loaded here.
+  Credentials (AcmeUsername, AcmePassword) are fetched from
+  UiPath Orchestrator Assets at runtime in InitAllApplications.xaml.
+-->
+<Activity
+  x:Class="ACMEEmployeeDataExtraction.Framework.InitAllSettings"
+  mc:Ignorable="sap sap2010"
+  xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
+  xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:excel="clr-namespace:UiPath.Excel.Activities;assembly=UiPath.Excel.Activities">
+
+  <x:Members>
+    <!-- Out: populated Config dictionary returned to Main -->
+    <x:Property Name="out_Config" Type="OutArgument(scg:Dictionary(x:String, x:String))" />
+  </x:Members>
+
+  <mva:VisualBasic.Settings>
+    <mva:VisualBasicSettings>
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.IO" />
+    </mva:VisualBasicSettings>
+  </mva:VisualBasic.Settings>
+
+  <Sequence DisplayName="InitAllSettings" sap2010:WorkflowViewState.IdRef="InitAllSettings">
+    <Sequence.Variables>
+      <Variable x:TypeArguments="scg:Dictionary(x:String, x:String)"
+                Name="dictConfig"
+                Default="[New Dictionary(Of String, String)()]" />
+      <Variable x:TypeArguments="System.Data.DataTable" Name="dtSettings" />
+      <Variable x:TypeArguments="x:String" Name="strConfigPath"
+                Default="[Path.Combine(Environment.CurrentDirectory, &quot;Config&quot;, &quot;Config.xlsx&quot;)]" />
+    </Sequence.Variables>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[SETTINGS] Loading configuration from: &quot; &amp; strConfigPath]" />
+
+    <!-- Validate config file exists before reading -->
+    <If Condition="[Not File.Exists(strConfigPath)]">
+      <If.Then>
+        <Throw>
+          <Throw.Exception>
+            <InArgument x:TypeArguments="System.Exception">
+              [New System.IO.FileNotFoundException("Config file not found at: " &amp; strConfigPath)]
+            </InArgument>
+          </Throw.Exception>
+        </Throw>
+      </If.Then>
+    </If>
+
+    <!-- Read Config.xlsx settings sheet into DataTable -->
+    <excel:ExcelApplicationScope WorkbookPath="[strConfigPath]"
+                                 DisplayName="Open Config.xlsx (read-only)"
+                                 Password=""
+                                 ReadOnly="True">
+      <excel:ExcelApplicationScope.Body>
+        <ActivityAction>
+          <excel:ReadRange SheetName="Settings"
+                           DisplayName="Read Settings Sheet"
+                           AddHeaders="True"
+                           DataTable="[dtSettings]" />
+        </ActivityAction>
+      </excel:ExcelApplicationScope.Body>
+    </excel:ExcelApplicationScope>
+
+    <!-- Populate dictionary from DataTable rows (Key, Value columns) -->
+    <ForEach x:TypeArguments="System.Data.DataRow" DisplayName="Build Config Dictionary"
+             Values="[dtSettings.AsEnumerable()]">
+      <ActivityAction x:TypeArguments="System.Data.DataRow">
+        <ActivityAction.Argument>
+          <DelegateInArgument x:TypeArguments="System.Data.DataRow" Name="row" />
+        </ActivityAction.Argument>
+        <If Condition="[Not String.IsNullOrWhiteSpace(row(&quot;Key&quot;).ToString())]">
+          <If.Then>
+            <InvokeCode DisplayName="Add key-value to Config">
+              <InvokeCode.Code>
+                <![CDATA[
+                  If Not dictConfig.ContainsKey(row("Key").ToString().Trim()) Then
+                    dictConfig.Add(row("Key").ToString().Trim(), row("Value").ToString().Trim())
+                  End If
+                ]]>
+              </InvokeCode.Code>
+              <InvokeCode.CodeActivityMetadata>
+                <CodeActivityMetadata>
+                  <CodeActivityMetadata.RuntimeDelegateArguments />
+                </CodeActivityMetadata>
+              </InvokeCode.CodeActivityMetadata>
+            </InvokeCode>
+          </If.Then>
+        </If>
+      </ActivityAction>
+    </ForEach>
+
+    <!-- Set runtime-computed values -->
+    <Assign DisplayName="Set OutputFilePath with timestamp">
+      <Assign.To>
+        <OutArgument x:TypeArguments="x:String">
+          [dictConfig("OutputFileName")]
+        </OutArgument>
+      </Assign.To>
+      <Assign.Value>
+        <InArgument x:TypeArguments="x:String">
+          ["EmployeeData_" &amp; DateTime.Now.ToString("yyyyMMdd_HHmmss") &amp; ".xlsx"]
+        </InArgument>
+      </Assign.Value>
+    </Assign>
+
+    <!-- Return populated config -->
+    <Assign DisplayName="Set out_Config">
+      <Assign.To>
+        <OutArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[out_Config]</OutArgument>
+      </Assign.To>
+      <Assign.Value>
+        <InArgument x:TypeArguments="scg:Dictionary(x:String, x:String)">[dictConfig]</InArgument>
+      </Assign.Value>
+    </Assign>
+
+    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
+                Message="[&quot;[SETTINGS] Configuration loaded. Keys: &quot; &amp; dictConfig.Count.ToString()]" />
+  </Sequence>
+</Activity>
