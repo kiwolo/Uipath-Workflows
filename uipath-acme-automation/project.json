@@ -1,20 +1,61 @@
 {
   "$schema": "https://cdn.uipath.com/studio/cloud/schemas/project.json",
   "name": "ACMEEmployeeDataExtraction",
+  "projectId": "77865b1c-fb2c-48eb-9980-6a1b5a75b950",
   "description": "RE-Framework automation to extract employee data from ACME website and export to Excel. Credentials are sourced from UiPath Orchestrator Assets only - no sensitive data is stored in this project.",
   "main": "Main.xaml",
-  "outputType": "Process",
-  "expressionLanguage": "VisualBasic",
-  "targetFramework": "Windows",
   "dependencies": {
-    "UiPath.Excel.Activities": "[2.23.0, )",
-    "UiPath.System.Activities": "[24.10.0, )",
-    "UiPath.UIAutomation.Activities": "[24.10.0, )",
-    "UiPath.WebAPI.Activities": "[1.13.0, )"
+    "UiPath.Excel.Activities": "[26.2.0]",
+    "UiPath.System.Activities": "[26.2.4]",
+    "UiPath.UIAutomation.Activities": "[26.2.0]",
+    "UiPath.WebAPI.Activities": "[1.15.0]"
+  },
+  "webServices": [],
+  "entitiesStores": [],
+  "schemaVersion": "4.0",
+  "studioVersion": "26.2.0.0",
+  "projectVersion": "1.0.0",
+  "runtimeOptions": {
+    "autoDispose": false,
+    "netFrameworkLazyLoading": false,
+    "isPausable": true,
+    "isAttended": false,
+    "requiresUserInteraction": true,
+    "supportsPersistence": false,
+    "workflowSerialization": "NewtonsoftJson",
+    "excludedLoggedData": [
+      "Private:*",
+      "*password*"
+    ],
+    "executionType": "Workflow",
+    "readyForPiP": false,
+    "startsInPiP": false,
+    "mustRestoreAllDependencies": true,
+    "pipType": "ChildSession"
   },
   "designOptions": {
-    "fileInfoCollection": []
+    "projectProfile": "Development",
+    "outputType": "Process",
+    "libraryOptions": {
+      "privateWorkflows": []
+    },
+    "processOptions": {
+      "ignoredFiles": []
+    },
+    "fileInfoCollection": [],
+    "saveToCloud": false
   },
-  "toolVersion": "24.10.0.0",
-  "studioVersion": "24.10.0.0"
+  "expressionLanguage": "VisualBasic",
+  "entryPoints": [
+    {
+      "filePath": "Main.xaml",
+      "uniqueId": "892b0ae2-7688-4128-b34d-e55127c4d3cb",
+      "input": [],
+      "output": []
+    }
+  ],
+  "isTemplate": false,
+  "templateProjectData": {},
+  "publishData": {},
+  "targetFramework": "Windows"
 }

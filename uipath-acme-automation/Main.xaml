@@ -30,7 +30,7 @@
     </mva:VisualBasicSettings>
   </mva:VisualBasic.Settings>
 
-  <StateMachine x:Name="REFramework_StateMachine" DisplayName="ACME Employee Data Extraction">
+  <StateMachine x:Name="REFramework_StateMachine" DisplayName="ACME Employee Data Extraction" sap2010:WorkflowViewState.IdRef="REFramework_StateMachine">
 
     <!-- ═══════════════════════════════════════════════════
          VARIABLES (process-wide scope)
