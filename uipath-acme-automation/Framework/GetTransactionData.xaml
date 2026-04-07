@@ -27,8 +27,10 @@
 
   <mva:VisualBasic.Settings>
     <mva:VisualBasicSettings>
-      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
-      <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+      <mva:VisualBasicSettings.ImportedNamespaces>
+        <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
+        <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
+      </mva:VisualBasicSettings.ImportedNamespaces>
     </mva:VisualBasicSettings>
   </mva:VisualBasic.Settings>
 

@@ -32,10 +32,12 @@
 
   <mva:VisualBasic.Settings>
     <mva:VisualBasicSettings>
-      <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System" />
-      <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.Collections.Generic" />
-      <mva:VisualBasicImportReference Assembly="System.Data"    Import="System.Data" />
-      <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.IO" />
+      <mva:VisualBasicSettings.ImportedNamespaces>
+        <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System" />
+        <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.Collections.Generic" />
+        <mva:VisualBasicImportReference Assembly="System.Data"    Import="System.Data" />
+        <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.IO" />
+      </mva:VisualBasicSettings.ImportedNamespaces>
     </mva:VisualBasicSettings>
   </mva:VisualBasic.Settings>
 
