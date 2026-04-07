@@ -1,56 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Framework/EndProcess.xaml
-  Closes the browser and logs the final process summary.
-  No credentials or sensitive data involved.
--->
 <Activity
-  x:Class="ACMEEmployeeDataExtraction.Framework.EndProcess"
+  x:Class="Framework_EndProcess"
   mc:Ignorable="sap sap2010 sads"
   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
   xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
   xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
-  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
-  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:uia="http://schemas.uipath.com/workflow/activities/uiautomation">
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+  xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib"
+  xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
+  xmlns:ui="http://schemas.uipath.com/workflow/activities"
+  xmlns:uia="http://schemas.uipath.com/workflow/activities/uiautomation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <x:Members>
     <x:Property Name="in_Config"            Type="InArgument(scg:Dictionary(x:String, x:String))" />
     <x:Property Name="in_TransactionNumber" Type="InArgument(x:Int32)" />
   </x:Members>
 
+  <VisualBasic.Settings>
+    <x:Null />
+  </VisualBasic.Settings>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.UIAutomation.Activities</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+
   <Sequence DisplayName="EndProcess">
-    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
-                Message="[&quot;[END] Beginning cleanup. Total transactions processed: &quot; &amp; in_TransactionNumber.ToString()]" />
+    <ui:LogMessage Level="Info"
+                   Message="[&quot;[END] Beginning cleanup. Total transactions processed: &quot; &amp; in_TransactionNumber.ToString()]" />
 
     <!-- Close all open browser windows gracefully -->
     <TryCatch DisplayName="Try - Close Browser">
       <TryCatch.Try>
+        <!-- CloseApplication closes the browser process. Selector targets Chrome/Edge.
+             NOTE: Update the selector in Studio if using a different browser. -->
         <uia:CloseApplication DisplayName="Close Browser"
                               Selector="&lt;html app='chrome.exe' /&gt;"
                               TimeoutMS="10000" />
       </TryCatch.Try>
       <TryCatch.Catches>
-        <Catch x:TypeArguments="System.Exception">
-          <ActivityAction x:TypeArguments="System.Exception">
+        <Catch x:TypeArguments="s:Exception">
+          <ActivityAction x:TypeArguments="s:Exception">
             <ActivityAction.Argument>
-              <DelegateInArgument x:TypeArguments="System.Exception" Name="closeEx" />
+              <DelegateInArgument x:TypeArguments="s:Exception" Name="closeEx" />
             </ActivityAction.Argument>
             <!-- Browser may already be closed — warn only, don't fail -->
-            <LogMessage Level="[System.Activities.Statements.LogSeverity.Warn]"
-                        Message="[&quot;[END] Browser close warning (may already be closed): &quot; &amp; closeEx.Message]" />
+            <ui:LogMessage Level="Warn"
+                           Message="[&quot;[END] Browser close warning (may already be closed): &quot; &amp; closeEx.Message]" />
           </ActivityAction>
         </Catch>
       </TryCatch.Catches>
     </TryCatch>
 
-    <!-- Log final summary -->
-    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
-                Message="[&quot;[END] ACME Employee Data Extraction process finished. Output: &quot; &amp; If(in_Config.ContainsKey(&quot;OutputFileName&quot;), in_Config(&quot;OutputFileName&quot;), &quot;N/A&quot;)]" />
+    <ui:LogMessage Level="Info"
+                   Message="[&quot;[END] ACME Employee Data Extraction process finished. Output: &quot; &amp; If(in_Config.ContainsKey(&quot;OutputFileName&quot;), in_Config(&quot;OutputFileName&quot;), &quot;N/A&quot;)]" />
 
-    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
-                Message="[&quot;[END] Process end time: &quot; &amp; DateTime.Now.ToString(&quot;yyyy-MM-dd HH:mm:ss&quot;)]" />
+    <ui:LogMessage Level="Info"
+                   Message="[&quot;[END] Process end time: &quot; &amp; DateTime.Now.ToString(&quot;yyyy-MM-dd HH:mm:ss&quot;)]" />
   </Sequence>
 </Activity>

@@ -1,50 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Framework/InitAllSettings.xaml
-  Loads non-sensitive configuration from Config/Config.xlsx.
-
-  SECURITY: Credentials are NOT loaded here.
-  Credentials (AcmeUsername, AcmePassword) are fetched from
-  UiPath Orchestrator Assets at runtime in InitAllApplications.xaml.
--->
 <Activity
-  x:Class="ACMEEmployeeDataExtraction.Framework.InitAllSettings"
+  x:Class="Framework_InitAllSettings"
   mc:Ignorable="sap sap2010 sads"
   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
   xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
   xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
-  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
-  xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=mscorlib"
-  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:scg="clr-namespace:System.Collections.Generic;assembly=System.Private.CoreLib"
+  xmlns:sco="clr-namespace:System.Collections.ObjectModel;assembly=System.Private.CoreLib"
+  xmlns:sdt="clr-namespace:System.Data;assembly=System.Data.Common"
+  xmlns:s="clr-namespace:System;assembly=System.Private.CoreLib"
   xmlns:ui="http://schemas.uipath.com/workflow/activities"
-  xmlns:excel="clr-namespace:UiPath.Excel.Activities;assembly=UiPath.Excel.Activities">
+  xmlns:excel="clr-namespace:UiPath.Excel.Activities;assembly=UiPath.Excel.Activities"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <x:Members>
-    <!-- Out: populated Config dictionary returned to Main -->
     <x:Property Name="out_Config" Type="OutArgument(scg:Dictionary(x:String, x:String))" />
   </x:Members>
 
-  <Sequence DisplayName="InitAllSettings" sap2010:WorkflowViewState.IdRef="InitAllSettings">
+  <VisualBasic.Settings>
+    <x:Null />
+  </VisualBasic.Settings>
+
+  <TextExpression.NamespacesForImplementation>
+    <sco:Collection x:TypeArguments="x:String">
+      <x:String>System</x:String>
+      <x:String>System.IO</x:String>
+      <x:String>System.Data</x:String>
+      <x:String>System.Collections.Generic</x:String>
+      <x:String>System.Linq</x:String>
+      <x:String>UiPath.Core</x:String>
+      <x:String>UiPath.Core.Activities</x:String>
+    </sco:Collection>
+  </TextExpression.NamespacesForImplementation>
+
+  <TextExpression.ReferencesForImplementation>
+    <sco:Collection x:TypeArguments="AssemblyReference">
+      <AssemblyReference>System</AssemblyReference>
+      <AssemblyReference>System.Activities</AssemblyReference>
+      <AssemblyReference>System.Data</AssemblyReference>
+      <AssemblyReference>System.Data.Common</AssemblyReference>
+      <AssemblyReference>System.Private.CoreLib</AssemblyReference>
+      <AssemblyReference>UiPath.System.Activities</AssemblyReference>
+      <AssemblyReference>UiPath.Excel.Activities</AssemblyReference>
+    </sco:Collection>
+  </TextExpression.ReferencesForImplementation>
+
+  <Sequence DisplayName="InitAllSettings">
     <Sequence.Variables>
       <Variable x:TypeArguments="scg:Dictionary(x:String, x:String)"
                 Name="dictConfig"
                 Default="[New Dictionary(Of String, String)()]" />
-      <Variable x:TypeArguments="System.Data.DataTable" Name="dtSettings" />
+      <Variable x:TypeArguments="sdt:DataTable" Name="dtSettings" />
       <Variable x:TypeArguments="x:String" Name="strConfigPath"
                 Default="[Path.Combine(Environment.CurrentDirectory, &quot;Config&quot;, &quot;Config.xlsx&quot;)]" />
     </Sequence.Variables>
 
-    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
-                Message="[&quot;[SETTINGS] Loading configuration from: &quot; &amp; strConfigPath]" />
+    <ui:LogMessage Level="Info"
+                   Message="[&quot;[SETTINGS] Loading configuration from: &quot; &amp; strConfigPath]" />
 
     <!-- Validate config file exists before reading -->
     <If Condition="[Not File.Exists(strConfigPath)]">
       <If.Then>
         <Throw>
           <Throw.Exception>
-            <InArgument x:TypeArguments="System.Exception">
+            <InArgument x:TypeArguments="s:Exception">
               [New System.IO.FileNotFoundException("Config file not found at: " &amp; strConfigPath)]
             </InArgument>
           </Throw.Exception>
@@ -54,9 +75,9 @@ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
 
     <!-- Read Config.xlsx settings sheet into DataTable -->
     <excel:ExcelApplicationScope WorkbookPath="[strConfigPath]"
-                                 DisplayName="Open Config.xlsx (read-only)"
-                                 Password=""
-                                 ReadOnly="True">
+                                  DisplayName="Open Config.xlsx (read-only)"
+                                  Password=""
+                                  ReadOnly="True">
       <excel:ExcelApplicationScope.Body>
         <ActivityAction>
           <excel:ReadRange SheetName="Settings"
@@ -68,39 +89,32 @@ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
     </excel:ExcelApplicationScope>
 
     <!-- Populate dictionary from DataTable rows (Key, Value columns) -->
-    <ForEach x:TypeArguments="System.Data.DataRow" DisplayName="Build Config Dictionary"
+    <ForEach x:TypeArguments="sdt:DataRow" DisplayName="Build Config Dictionary"
              Values="[dtSettings.AsEnumerable()]">
-      <ActivityAction x:TypeArguments="System.Data.DataRow">
+      <ActivityAction x:TypeArguments="sdt:DataRow">
         <ActivityAction.Argument>
-          <DelegateInArgument x:TypeArguments="System.Data.DataRow" Name="row" />
+          <DelegateInArgument x:TypeArguments="sdt:DataRow" Name="row" />
         </ActivityAction.Argument>
         <If Condition="[Not String.IsNullOrWhiteSpace(row(&quot;Key&quot;).ToString())]">
           <If.Then>
-            <InvokeCode DisplayName="Add key-value to Config">
-              <InvokeCode.Code>
-                <![CDATA[
-                  If Not dictConfig.ContainsKey(row("Key").ToString().Trim()) Then
-                    dictConfig.Add(row("Key").ToString().Trim(), row("Value").ToString().Trim())
-                  End If
-                ]]>
-              </InvokeCode.Code>
-              <InvokeCode.CodeActivityMetadata>
-                <CodeActivityMetadata>
-                  <CodeActivityMetadata.RuntimeDelegateArguments />
-                </CodeActivityMetadata>
-              </InvokeCode.CodeActivityMetadata>
-            </InvokeCode>
+            <!-- Assign to dictionary slot directly (VB l-value indexer) -->
+            <Assign DisplayName="Add key-value to Config">
+              <Assign.To>
+                <OutArgument x:TypeArguments="x:String">[dictConfig(row("Key").ToString().Trim())]</OutArgument>
+              </Assign.To>
+              <Assign.Value>
+                <InArgument x:TypeArguments="x:String">[row("Value").ToString().Trim()]</InArgument>
+              </Assign.Value>
+            </Assign>
           </If.Then>
         </If>
       </ActivityAction>
     </ForEach>
 
-    <!-- Set runtime-computed values -->
-    <Assign DisplayName="Set OutputFilePath with timestamp">
+    <!-- Set runtime-computed output filename with timestamp -->
+    <Assign DisplayName="Set OutputFileName with timestamp">
       <Assign.To>
-        <OutArgument x:TypeArguments="x:String">
-          [dictConfig("OutputFileName")]
-        </OutArgument>
+        <OutArgument x:TypeArguments="x:String">[dictConfig("OutputFileName")]</OutArgument>
       </Assign.To>
       <Assign.Value>
         <InArgument x:TypeArguments="x:String">
@@ -119,7 +133,7 @@ xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
       </Assign.Value>
     </Assign>
 
-    <LogMessage Level="[System.Activities.Statements.LogSeverity.Information]"
-                Message="[&quot;[SETTINGS] Configuration loaded. Keys: &quot; &amp; dictConfig.Count.ToString()]" />
+    <ui:LogMessage Level="Info"
+                   Message="[&quot;[SETTINGS] Configuration loaded. Keys: &quot; &amp; dictConfig.Count.ToString()]" />
   </Sequence>
 </Activity>
