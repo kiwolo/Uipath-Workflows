@@ -12,8 +12,7 @@
   mc:Ignorable="sap sap2010 sads"
   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
-  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
   xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
   xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
   xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
@@ -26,16 +25,6 @@
     <!-- Out: populated Config dictionary returned to Main -->
     <x:Property Name="out_Config" Type="OutArgument(scg:Dictionary(x:String, x:String))" />
   </x:Members>
-
-  <mva:VisualBasic.Settings>
-    <mva:VisualBasicSettings>
-      <mva:VisualBasicSettings.ImportedNamespaces>
-        <mva:VisualBasicImportReference Assembly="mscorlib" Import="System" />
-        <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.Collections.Generic" />
-        <mva:VisualBasicImportReference Assembly="mscorlib" Import="System.IO" />
-      </mva:VisualBasicSettings.ImportedNamespaces>
-    </mva:VisualBasicSettings>
-  </mva:VisualBasic.Settings>
 
   <Sequence DisplayName="InitAllSettings" sap2010:WorkflowViewState.IdRef="InitAllSettings">
     <Sequence.Variables>

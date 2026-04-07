@@ -13,8 +13,7 @@
   mc:Ignorable="sap sap2010 sads"
   xmlns="http://schemas.microsoft.com/netfx/2009/xaml/activities"
   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-  xmlns:mva="clr-namespace:Microsoft.VisualBasic.Activities;assembly=System.Activities"
-  xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
+xmlns:sap="http://schemas.microsoft.com/netfx/2009/xaml/activities/presentation"
   xmlns:sap2010="http://schemas.microsoft.com/netfx/2010/xaml/activities/presentation"
   xmlns:sads="http://schemas.microsoft.com/netfx/2010/xaml/activities/debugger"
   xmlns:scg="clr-namespace:System.Collections.Generic;assembly=mscorlib"
@@ -29,17 +28,6 @@
     <x:Property Name="in_TransactionID"     Type="InArgument(x:String)" />
     <x:Property Name="out_Success"          Type="OutArgument(x:Boolean)" />
   </x:Members>
-
-  <mva:VisualBasic.Settings>
-    <mva:VisualBasicSettings>
-      <mva:VisualBasicSettings.ImportedNamespaces>
-        <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System" />
-        <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.Collections.Generic" />
-        <mva:VisualBasicImportReference Assembly="System.Data"    Import="System.Data" />
-        <mva:VisualBasicImportReference Assembly="mscorlib"       Import="System.IO" />
-      </mva:VisualBasicSettings.ImportedNamespaces>
-    </mva:VisualBasicSettings>
-  </mva:VisualBasic.Settings>
 
   <Sequence DisplayName="Process - Employee Data Extraction">
     <Sequence.Variables>
